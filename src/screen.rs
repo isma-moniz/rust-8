@@ -1,7 +1,5 @@
 extern crate sdl2;
 
-use sdl2::event::Event;
-use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::Canvas;
@@ -32,7 +30,7 @@ impl Screen {
         }
     }
 
-    fn draw(&mut self, buffer: &[u32; 64 * 32]) {
+    pub fn draw(&mut self, buffer: &[u32; 64 * 32]) {
         self.canvas.set_draw_color(Color::BLACK);
         self.canvas.clear();
 
@@ -46,29 +44,5 @@ impl Screen {
         }
 
         self.canvas.present();
-    }
-
-    pub fn display_loop(&mut self, buffer: &[u32; 64 * 32]) {
-        let mut event_pump = self.sdl_context.event_pump().unwrap();
-
-        'running: loop {
-            for event in event_pump.poll_iter() {
-                match event {
-                    Event::Quit { .. }
-                    | Event::KeyDown {
-                        scancode: Some(Scancode::Escape),
-                        ..
-                    } => {
-                        break 'running;
-                    }
-                    _ => {
-                        println!("No match for: {:?}", event);
-                    }
-                }
-            }
-
-            self.draw(buffer);
-            std::thread::sleep(Duration::from_millis(16));
-        }
     }
 }
