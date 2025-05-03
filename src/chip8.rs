@@ -44,7 +44,7 @@ impl Chip8 {
         }
         // TODO: i'm putting all zeroes for now, need to check actual init values
         Self {
-            memory: Box::new(memory),
+            memory: Box::new([0u8; 4096]),
             pc: 0x200,
             stack: [0u16; 16],
             sp: 0,
@@ -98,26 +98,150 @@ impl Chip8 {
         // decode and execute
 
         // we start by capturing and storing the nibbles (4 bit)
-        let first_nibble: u16 = self.opcode >> 12; // the first nibble
-        let x: u16 = (self.opcode >> 8) & 0x000F; // the second nibble
-        let y: u16 = (self.opcode >> 4) & 0x000F; // the third nibble
-        let n: u16 = self.opcode & 0x000F; // the fourth nibble
-        let nn: u16 = self.opcode & 0x00FF; // second byte
-        let nnn: u16 = self.opcode & 0x0FFF; // second, third, fourth nibbles
+        let first_nibble: u8 = (self.opcode >> 12) as u8; // the first nibble
+        let x: u8 = ((self.opcode >> 8) & 0x000Fu16) as u8; // the second nibble
+        let y: u8 = ((self.opcode >> 4) & 0x000Fu16) as u8; // the third nibble
+        let n: u8 = (self.opcode & 0x000Fu16) as u8; // the fourth nibble
+        let nn: u8 = (self.opcode & 0x00FFu16) as u8; // second byte
+        let nnn: u16 = (self.opcode & 0x0FFFu16) as u16; // second, third, fourth nibbles
 
         match first_nibble {
             0x0 => match nn {
                 0xE0 => {
-                    // clear screen
+                    self.clear_screen();
                 }
                 0xEE => {
-                    // RET
+                    self.ret();
                 }
                 _ => {
                     // ignore the rest
                 }
             },
+            0x1 => {
+                self.jump(nnn);
+            }
+            0x2 => {
+                self.call(nnn);
+            }
+            0x3 => {
+                self.skip_if_equals_byte(x, nn);
+            }
+            0x4 => {
+                self.skip_if_not_equals_byte(x, nn);
+            }
+            0x5 => {
+                self.skip_if_equals_registers(x, y);
+            }
+            0x6 => {
+                self.load(x, nn);
+            }
+            0x7 => {
+                self.add_to_register(x, nn);
+            }
+            0x8 => match n {
+                0x0 => {
+                    self.load_register(x, y);
+                }
+                0x1 => {
+                    self.or_registers(x, y);
+                }
+                0x2 => {
+                    self.and_registers(x, y);
+                }
+                0x3 => {
+                    self.xor_registers(x, y);
+                }
+                0x4 => {
+                    self.add_registers(x, y);
+                }
+                0x5 => {
+                    self.sub_registers(x, y);
+                }
+                0x6 => {
+                    self.shr_register(x);
+                }
+                0x7 => {
+                    self.sub_registers(x, y);
+                }
+                0xE => {
+                    self.shl_register(x);
+                }
+                _ => {}
+            },
             _ => {}
         }
+    }
+
+    // instruction set
+
+    fn clear_screen(&mut self) {
+        self.video_buffer = [0; 64 * 32];
+    }
+
+    fn ret(&mut self) {
+        self.sp -= 1;
+        self.pc = self.stack[self.sp as usize];
+    }
+
+    fn jump(&mut self, address: u16) {
+        self.pc = address;
+    }
+
+    fn call(&mut self, address: u16) {
+        self.stack[self.sp as usize] = self.pc;
+        self.sp += 1;
+        self.pc = address;
+    }
+
+    fn skip_if_equals_byte(&mut self, v_x: u8, byte: u8) {
+        if self.registers[v_x as usize] == byte {
+            self.pc += 2;
+        }
+    }
+
+    fn skip_if_not_equals_byte(&mut self, v_x: u8, byte: u8) {
+        if self.registers[v_x as usize] != byte {
+            self.pc += 2;
+        }
+    }
+
+    fn skip_if_equals_registers(&mut self, v_x: u8, v_y: u8) {
+        if self.registers[v_x as usize] == self.registers[v_y as usize] {
+            self.pc += 2;
+        }
+    }
+
+    fn load(&mut self, v_x: u8, byte: u8) {
+        self.registers[v_x as usize] = byte;
+    }
+
+    fn add_to_register(&mut self, v_x: u8, byte: u8) {
+        self.registers[v_x as usize] += byte;
+    }
+
+    fn load_register(&mut self, v_x: u8, v_y: u8) {
+        self.registers[v_x as usize] = self.registers[v_y as usize];
+    }
+
+    fn or_registers(&mut self, v_x: u8, v_y: u8) {
+        self.registers[v_x as usize] |= self.registers[v_y as usize];
+    }
+
+    fn and_registers(&mut self, v_x: u8, v_y: u8) {
+        self.registers[v_x as usize] &= self.registers[v_y as usize];
+    }
+
+    fn xor_registers(&mut self, v_x: u8, v_y: u8) {
+        self.registers[v_x as usize] ^= self.registers[v_y as usize];
+    }
+
+    fn add_registers(&mut self, v_x: u8, v_y: u8) {
+        let sum: u16 = self.registers[v_x as usize] as u16 + self.registers[v_y as usize] as u16;
+        if sum > 255u16 {
+            self.registers[0xF] = 1; // overflow flag
+        } else {
+            self.registers[0xF] = 0;
+        }
+        self.registers[v_x as usize] = (sum & 0x00FFu16) as u8;
     }
 }
