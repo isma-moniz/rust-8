@@ -21,6 +21,9 @@ const FONT: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 ];
 
+const VIDEO_WIDTH: usize = 64;
+const VIDEO_HEIGHT: usize = 32;
+
 pub struct Chip8 {
     memory: Box<[u8; 4096]>,
     pc: u16,
@@ -53,7 +56,7 @@ impl Chip8 {
             index: 0,
             delay_timer: 0,
             sound_timer: 0,
-            video_buffer: [0; 64 * 32],
+            video_buffer: [0; VIDEO_WIDTH*VIDEO_HEIGHT],
             registers: [0; 16],
             keypad: [false; 16],
             opcode: 0,
@@ -183,6 +186,19 @@ impl Chip8 {
             0xC => {
                 self.rnd_and_byte(x, nn);
             }
+            0xD => {
+                self.draw(x, y, n);
+            }
+            0xE => match nn {
+                    0x9E => {
+                        
+                    }, 
+                    0xA1 => {
+
+                    }
+                    _ => {}
+            },
+            
             _ => {}
         }
     }
@@ -190,7 +206,7 @@ impl Chip8 {
     // instruction set
 
     fn clear_screen(&mut self) {
-        self.video_buffer = [0; 64 * 32];
+        self.video_buffer = [0; VIDEO_WIDTH*VIDEO_HEIGHT];
     }
 
     fn ret(&mut self) {
@@ -309,5 +325,30 @@ impl Chip8 {
     fn rnd_and_byte(&mut self, v_x: u8, byte: u8) {
         let random_byte: u8 = self.rng.random();
         self.registers[v_x as usize] = random_byte & byte;
+    }
+
+    fn draw(&mut self, v_x: u8, v_y: u8, height: u8) {
+        let x: u16 = self.registers[v_x as usize] as u16;
+        let y: u16 = self.registers[v_y as usize] as u16;
+        self.registers[0xF] = 0; // collision flag reset
+
+        for row in 0..height {
+            let sprite_byte = self.memory[self.index as usize + row as usize];
+            for col in 0..8 {
+                let sprite_pixel = (sprite_byte >> (7 - col)) & 1;
+                if sprite_pixel == 0 {
+                    continue;
+                }
+                let x_pos = (x + col) % VIDEO_WIDTH as u16;
+                let y_pos = (y + row as u16) % VIDEO_HEIGHT as u16;
+                let buffer_index = (y_pos * VIDEO_WIDTH as u16 + x_pos) as usize;
+
+                let screen_pixel = &mut self.video_buffer[buffer_index as usize];
+                    if *screen_pixel == 0xFFFFFFFF {
+                        self.registers[0xF] = 1; // Collision detected
+                    }
+                    *screen_pixel ^= 0xFFFFFFFF; // Toggle pixel
+            }
+        }
     }
 }
