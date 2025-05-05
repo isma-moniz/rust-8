@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::Read;
+use rand::prelude::*;
 
 const FONT: [u8; 80] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -32,6 +33,7 @@ pub struct Chip8 {
     registers: [u8; 16],
     keypad: [bool; 16],
     opcode: u16,
+    rng: ThreadRng,
 }
 
 impl Chip8 {
@@ -44,7 +46,7 @@ impl Chip8 {
         }
         // TODO: i'm putting all zeroes for now, need to check actual init values
         Self {
-            memory: Box::new([0u8; 4096]),
+            memory: Box::new(memory),
             pc: 0x200,
             stack: [0u16; 16],
             sp: 0,
@@ -55,6 +57,7 @@ impl Chip8 {
             registers: [0; 16],
             keypad: [false; 16],
             opcode: 0,
+            rng: rand::rng(),
         }
     }
 
@@ -161,13 +164,25 @@ impl Chip8 {
                     self.shr_register(x);
                 }
                 0x7 => {
-                    self.sub_registers(x, y);
+                    self.subn_registers(x, y);
                 }
                 0xE => {
                     self.shl_register(x);
                 }
                 _ => {}
             },
+            0x9 => {
+                self.sne(x, y);
+            }
+            0xA => {
+                self.load_address_to_index(nnn);
+            }
+            0xB => {
+                self.jump_v0(nnn);
+            }
+            0xC => {
+                self.rnd_and_byte(x, nn);
+            }
             _ => {}
         }
     }
@@ -243,5 +258,56 @@ impl Chip8 {
             self.registers[0xF] = 0;
         }
         self.registers[v_x as usize] = (sum & 0x00FFu16) as u8;
+    }
+
+    fn sub_registers(&mut self, v_x: u8, v_y: u8) {
+        let sub: u16 = self.registers[v_x as usize] as u16 - self.registers[v_y as usize] as u16;
+        if self.registers[v_x as usize] > self.registers[v_y as usize] {
+            self.registers[0xF] = 1;
+        } else {
+            self.registers[0xF] = 0;
+        }
+        self.registers[v_x as usize] = (sub & 0x00FFu16) as u8;
+    }
+
+    fn subn_registers(&mut self, v_x: u8, v_y: u8) {
+        let sub: u16 = self.registers[v_y as usize] as u16 - self.registers[v_y as usize] as u16;
+        if self.registers[v_y as usize] > self.registers[v_x as usize] {
+            self.registers[0xF] = 1;
+        } else {
+            self.registers[0xF] = 0;
+        }
+        self.registers[v_x as usize] = (sub & 0x00FFu16) as u8;
+    }
+
+    fn shr_register(&mut self, v_x: u8) {
+        let least_significant_bit: u8 = v_x & 0x01u8;
+        self.registers[0xF] = least_significant_bit;
+        self.registers[v_x as usize] >>= 1;
+    }
+
+    fn shl_register(&mut self, v_x: u8) {
+        let most_significant_bit: u8 = (v_x & 0xF0u8) >> 7;
+        self.registers[0xF] = most_significant_bit;
+        self.registers[v_x as usize] <<= 1;
+    }
+
+    fn sne(&mut self, v_x:u8, v_y:u8) {
+        if self.registers[v_x as usize] != self.registers[v_y as usize] {
+            self.pc += 2;
+        }
+    }
+
+    fn load_address_to_index(&mut self, addr: u16) {
+        self.index = addr;
+    }
+
+    fn jump_v0(&mut self, addr: u16) {
+        self.pc = addr + self.registers[0 as usize] as u16;
+    }
+
+    fn rnd_and_byte(&mut self, v_x: u8, byte: u8) {
+        let random_byte: u8 = self.rng.random();
+        self.registers[v_x as usize] = random_byte & byte;
     }
 }
