@@ -285,7 +285,7 @@ impl Chip8 {
     }
 
     fn add_to_register(&mut self, v_x: u8, byte: u8) {
-        self.registers[v_x as usize] += byte;
+        self.registers[v_x as usize] = self.registers[v_x as usize].wrapping_add(byte);
     }
 
     fn load_register(&mut self, v_x: u8, v_y: u8) {
@@ -315,7 +315,8 @@ impl Chip8 {
     }
 
     fn sub_registers(&mut self, v_x: u8, v_y: u8) {
-        let sub: u16 = self.registers[v_x as usize] as u16 - self.registers[v_y as usize] as u16;
+        let sub: u16 =
+            (self.registers[v_x as usize] as u16).wrapping_sub(self.registers[v_y as usize] as u16);
         if self.registers[v_x as usize] > self.registers[v_y as usize] {
             self.registers[0xF] = 1;
         } else {
@@ -325,7 +326,8 @@ impl Chip8 {
     }
 
     fn subn_registers(&mut self, v_x: u8, v_y: u8) {
-        let sub: u16 = self.registers[v_y as usize] as u16 - self.registers[v_y as usize] as u16;
+        let sub: u16 =
+            (self.registers[v_y as usize] as u16).wrapping_sub(self.registers[v_y as usize] as u16);
         if self.registers[v_y as usize] > self.registers[v_x as usize] {
             self.registers[0xF] = 1;
         } else {

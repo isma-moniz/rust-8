@@ -62,25 +62,25 @@ impl Screen {
                     return false; // quit
                 }
                 Event::KeyDown {
-                    scancode: Some(Scancode::Kp1),
+                    scancode: Some(Scancode::Num1),
                     ..
                 } => {
                     keys[1] = true;
                 }
                 Event::KeyDown {
-                    scancode: Some(Scancode::Kp2),
+                    scancode: Some(Scancode::Num2),
                     ..
                 } => {
                     keys[2] = true;
                 }
                 Event::KeyDown {
-                    scancode: Some(Scancode::Kp3),
+                    scancode: Some(Scancode::Num3),
                     ..
                 } => {
                     keys[3] = true;
                 }
                 Event::KeyDown {
-                    scancode: Some(Scancode::Kp4),
+                    scancode: Some(Scancode::Num4),
                     ..
                 } => {
                     keys[12] = true;
@@ -158,25 +158,25 @@ impl Screen {
                     keys[15] = true;
                 }
                 Event::KeyUp {
-                    scancode: Some(Scancode::Kp1),
+                    scancode: Some(Scancode::Num1),
                     ..
                 } => {
                     keys[1] = false;
                 }
                 Event::KeyUp {
-                    scancode: Some(Scancode::Kp2),
+                    scancode: Some(Scancode::Num2),
                     ..
                 } => {
                     keys[2] = false;
                 }
                 Event::KeyUp {
-                    scancode: Some(Scancode::Kp3),
+                    scancode: Some(Scancode::Num3),
                     ..
                 } => {
                     keys[3] = false;
                 }
                 Event::KeyUp {
-                    scancode: Some(Scancode::Kp4),
+                    scancode: Some(Scancode::Num4),
                     ..
                 } => {
                     keys[12] = false;
