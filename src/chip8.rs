@@ -1,6 +1,6 @@
+use rand::prelude::*;
 use std::fs::File;
 use std::io::Read;
-use rand::prelude::*;
 
 const FONT: [u8; 80] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -23,6 +23,7 @@ const FONT: [u8; 80] = [
 
 const VIDEO_WIDTH: usize = 64;
 const VIDEO_HEIGHT: usize = 32;
+const FONT_ADDRESS: usize = 0x050;
 
 pub struct Chip8 {
     memory: Box<[u8; 4096]>,
@@ -56,7 +57,7 @@ impl Chip8 {
             index: 0,
             delay_timer: 0,
             sound_timer: 0,
-            video_buffer: [0; VIDEO_WIDTH*VIDEO_HEIGHT],
+            video_buffer: [0; VIDEO_WIDTH * VIDEO_HEIGHT],
             registers: [0; 16],
             keypad: [false; 16],
             opcode: 0,
@@ -68,9 +69,16 @@ impl Chip8 {
         &self.video_buffer
     }
 
+    pub fn get_keypad(&mut self) -> &mut [bool; 16] {
+        &mut self.keypad
+    }
+
     pub fn tick_clock(&mut self) {
         if self.delay_timer > 0 {
-            self.delay_timer -= 1
+            self.delay_timer -= 1;
+        }
+        if self.sound_timer > 0 {
+            self.sound_timer -= 1;
         }
     }
 
@@ -190,15 +198,45 @@ impl Chip8 {
                 self.draw(x, y, n);
             }
             0xE => match nn {
-                    0x9E => {
-                        
-                    }, 
-                    0xA1 => {
-
-                    }
-                    _ => {}
+                0x9E => {
+                    self.skip_key(x);
+                }
+                0xA1 => {
+                    self.skip_not_key(x);
+                }
+                _ => {}
             },
-            
+            0xF => match nn {
+                0x07 => {
+                    self.load_timer(x);
+                }
+                0x0A => {
+                    self.load_key(x);
+                }
+                0x15 => {
+                    self.set_delay(x);
+                }
+                0x18 => {
+                    self.set_sound(x);
+                }
+                0x1E => {
+                    self.add_to_index(x);
+                }
+                0x29 => {
+                    self.ld_digit_to_index(x);
+                }
+                0x33 => {
+                    self.bcd_to_index(x);
+                }
+                0x55 => {
+                    self.store_to_index(x);
+                }
+                0x65 => {
+                    self.read_from_index(x);
+                }
+                _ => {}
+            },
+
             _ => {}
         }
     }
@@ -206,7 +244,7 @@ impl Chip8 {
     // instruction set
 
     fn clear_screen(&mut self) {
-        self.video_buffer = [0; VIDEO_WIDTH*VIDEO_HEIGHT];
+        self.video_buffer = [0; VIDEO_WIDTH * VIDEO_HEIGHT];
     }
 
     fn ret(&mut self) {
@@ -308,7 +346,7 @@ impl Chip8 {
         self.registers[v_x as usize] <<= 1;
     }
 
-    fn sne(&mut self, v_x:u8, v_y:u8) {
+    fn sne(&mut self, v_x: u8, v_y: u8) {
         if self.registers[v_x as usize] != self.registers[v_y as usize] {
             self.pc += 2;
         }
@@ -344,11 +382,84 @@ impl Chip8 {
                 let buffer_index = (y_pos * VIDEO_WIDTH as u16 + x_pos) as usize;
 
                 let screen_pixel = &mut self.video_buffer[buffer_index as usize];
-                    if *screen_pixel == 0xFFFFFFFF {
-                        self.registers[0xF] = 1; // Collision detected
-                    }
-                    *screen_pixel ^= 0xFFFFFFFF; // Toggle pixel
+                if *screen_pixel == 0xFFFFFFFF {
+                    self.registers[0xF] = 1; // Collision detected
+                }
+                *screen_pixel ^= 0xFFFFFFFF; // Toggle pixel
             }
+        }
+    }
+
+    fn skip_key(&mut self, v_x: u8) {
+        let key = self.registers[v_x as usize];
+        if self.keypad[key as usize] {
+            self.pc += 2;
+        }
+    }
+
+    fn skip_not_key(&mut self, v_x: u8) {
+        let key = self.registers[v_x as usize];
+        if !self.keypad[key as usize] {
+            self.pc += 2;
+        }
+    }
+
+    fn load_timer(&mut self, v_x: u8) {
+        self.registers[v_x as usize] = self.delay_timer;
+    }
+
+    fn load_key(&mut self, v_x: u8) {
+        let mut key: i8 = -1;
+        for i in 0..15 {
+            if self.keypad[i] {
+                key = i as i8;
+                break;
+            }
+        }
+        if key == -1 {
+            self.pc -= 2;
+        } else {
+            self.registers[v_x as usize] = key as u8;
+        }
+    }
+
+    fn set_delay(&mut self, v_x: u8) {
+        self.delay_timer = self.registers[v_x as usize];
+    }
+
+    fn set_sound(&mut self, v_x: u8) {
+        self.sound_timer = self.registers[v_x as usize];
+    }
+
+    fn add_to_index(&mut self, v_x: u8) {
+        self.index += self.registers[v_x as usize] as u16;
+    }
+
+    fn ld_digit_to_index(&mut self, v_x: u8) {
+        self.index = FONT_ADDRESS as u16 + (5 * self.registers[v_x as usize]) as u16;
+    }
+
+    fn bcd_to_index(&mut self, v_x: u8) {
+        let mut value: u8 = self.registers[v_x as usize];
+
+        self.memory[self.index as usize + 2] = value % 10;
+        value /= 10;
+
+        self.memory[self.index as usize + 1] = value % 10;
+        value /= 10;
+
+        self.memory[self.index as usize] = value % 10;
+    }
+
+    fn store_to_index(&mut self, v_x: u8) {
+        for i in 0..=v_x as usize {
+            self.memory[self.index as usize + i] = self.registers[i];
+        }
+    }
+
+    fn read_from_index(&mut self, v_x: u8) {
+        for i in 0..=v_x as usize {
+            self.registers[i] = self.memory[self.index as usize + i];
         }
     }
 }
