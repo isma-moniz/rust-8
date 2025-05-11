@@ -20,7 +20,7 @@ fn main() {
 
     chip8
         .load_rom(file_path)
-        .expect("File {file_path} not found in 'roms' folder.");
+        .expect("File {file_path} not found.");
 
     let mut last_instruction_time = Instant::now();
     let mut last_clock_time = Instant::now();
